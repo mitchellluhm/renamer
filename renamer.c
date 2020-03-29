@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <ctype.h>
 #include "renamer.h"
 
 const char* DEST = "/media/Archive8_6/pnew/";
@@ -19,7 +20,7 @@ int main(int argc, const char* argv[])
 		return -1;
 	}
 
-	char* dirpath = argv[1];
+	const char* dirpath = argv[1];
 	DIR *dir = opendir(dirpath);
 	if (dir != NULL)
 	{
@@ -27,10 +28,14 @@ int main(int argc, const char* argv[])
 		while ((ent = readdir(dir)) != NULL)
 		{
 			// check if ent is a directory
-			if (ent->d_type == DT_DIR &&
-				strcmp(ent->d_name, ".") != 0 &&
-				strcmp(ent->d_name, "..") != 0)
+			if (ent->d_type == DT_DIR)
 			{
+				if (strcmp(ent->d_name, ".") == 0 ||
+					strcmp(ent->d_name, "..") == 0)
+				{
+					continue;
+				}
+
 				printf("handledirectory(%s, %s)\n", dirpath, ent->d_name);
 				handledirectory(dirpath, ent->d_name);
 			}
@@ -47,13 +52,12 @@ int main(int argc, const char* argv[])
 	}
 	else
 	{
-		/* could not open directory */
-		perror ("");
+		perror ("Could not open directory");
 		return -1;
 	}
 }
 
-void handledirectory(char* dirpath, char* ent)
+void handledirectory(const char* dirpath, char* ent)
 {
 	char* dirpathnew = (char*)malloc(sizeof(char) * strlen(dirpath) + strlen(ent) + 2);
 	sprintf(dirpathnew, "%s/%s", dirpath, ent);
@@ -64,7 +68,6 @@ void handledirectory(char* dirpath, char* ent)
 		struct dirent *entnew;
 		while ((entnew = readdir(dir)) != NULL)
 		{
-			// check if ent is a directory
 			if (entnew->d_type == DT_REG)
 			{
 				char* orig = (char*)malloc(sizeof(char) * strlen(dirpathnew) + strlen(entnew->d_name) + 2);
@@ -81,33 +84,37 @@ void handledirectory(char* dirpath, char* ent)
 				free(orig);
 				free(dest);
 			}
+			else if (entnew->d_type == DT_DIR &&
+					(strcmp(entnew->d_name, ".") == 0 ||
+					 strcmp(entnew->d_name, "..") == 0))
+			{
+				continue;
+			}
 			else
 			{
 				printf("Unsure what to do with '%s'\n", entnew->d_name);
 			}
 		}
-		closedir (dir);
+		closedir(dir);
 	}
 	else
 	{
-		/* could not open directory */
-		perror ("");
-		return -1;
+		perror("Could not open directory");
 	}
 
 	free(dirpathnew);
 }
 
-void handlefile(char* dirpath, char* ent)
+void handlefile(const char* dirpath, char* ent)
 {
-	if (strlen(ent) > 5)
+	int len = strlen(ent);
+	if (len > 5 &&
+		strcmp(ent + (len - 5), ".part") == 0)
 	{
-		if (strcmp(ent + (strlen(ent) - 5), ".part") == 0)
-		{
-			printf("IS PART: %s\n", ent);
-			return;
-		}
+		printf("Skipping partial file: %s\n", ent);
+		return;
 	}
+
 	printf("inside handlefile %s %s\n", dirpath, ent);
 	struct AuthorFile authorfile;
 	if (hasauthor(ent, &authorfile))
@@ -124,7 +131,7 @@ void handlefile(char* dirpath, char* ent)
 		if (opendir(subdest) == NULL)
 		{
 			printf("mkdir %s\n", subdest);
-			int mkd = mkdir(subdest, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+			mkdir(subdest, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 		}
 		// see if dest dirs exist
 
